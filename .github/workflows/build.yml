@@ -32,6 +32,11 @@ jobs:
       - name: Add Android platform (first run only — safe if already present)
         run: npx cap add android || npx cap sync android
 
+      - name: Apply native scroll fix (disable WebView overscroll)
+        run: |
+          mkdir -p android/app/src/main/java/com/nullvault/gymtracker
+          cp android-native-reference/MainActivity.java android/app/src/main/java/com/nullvault/gymtracker/MainActivity.java
+
       - name: Sync web assets into native project
         run: npx cap sync android
 
