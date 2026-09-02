@@ -13,7 +13,8 @@
    ============================================================ */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import {
-  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+  getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential,
+  signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, onSnapshot
@@ -60,14 +61,38 @@ import {
     return doc(db, 'users', uid);
   }
 
+  // signInWithPopup (and signInWithRedirect) require a real browser context.
+  // Inside the Capacitor native WebView there is no popup surface, and Google
+  // actively refuses OAuth from an embedded WebView (`disallowed_useragent`)
+  // as a security policy — so on native we route through the device's real
+  // Google Sign-In UI via @capacitor-firebase/authentication instead, then
+  // hand the resulting tokens to the JS SDK so Firestore/auth state stays
+  // exactly the same as the web flow.
+  const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform());
+
   async function signIn(){
     try{
-      await signInWithPopup(auth, provider);
+      if(isNative){
+        const { FirebaseAuthentication } = window.Capacitor.Plugins;
+        if(!FirebaseAuthentication){
+          alert('Native sign-in plugin not found. Rebuild with @capacitor-firebase/authentication installed.');
+          return;
+        }
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        const idToken = result.credential?.idToken;
+        if(!idToken){
+          throw new Error('No ID token returned from native Google sign-in');
+        }
+        const credential = GoogleAuthProvider.credential(idToken);
+        await signInWithCredential(auth, credential);
+      } else {
+        await signInWithPopup(auth, provider);
+      }
     }catch(e){
       console.error('Sign-in failed', e);
       if(e.code === 'auth/popup-blocked'){
         alert('Your browser blocked the sign-in popup. Please allow popups for this site and try again.');
-      } else if(e.code !== 'auth/popup-closed-by-user'){
+      } else if(e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request'){
         alert('Sign-in failed: ' + (e.message || e.code));
       }
     }
@@ -75,6 +100,9 @@ import {
 
   async function doSignOut(){
     if(unsubscribeSnapshot){ unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+    if(isNative && window.Capacitor.Plugins.FirebaseAuthentication){
+      try{ await window.Capacitor.Plugins.FirebaseAuthentication.signOut(); }catch(e){ console.warn(e); }
+    }
     await signOut(auth);
   }
 
