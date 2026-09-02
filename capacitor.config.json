@@ -1,0 +1,13 @@
+{
+  "appId": "com.nullvault.gymtracker",
+  "appName": "Gym Tracker",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}
